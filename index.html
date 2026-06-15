@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>文化祭 販売管理システム</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Festival POS Prototype</p>
+          <h1>文化祭 販売管理</h1>
+        </div>
+        <nav class="top-actions" aria-label="画面切り替え">
+          <button class="nav-button active" type="button" data-route="staff">店員</button>
+          <button class="nav-button" type="button" data-route="hq">本部</button>
+        </nav>
+      </header>
+
+      <main>
+        <section class="view active" id="staffView" aria-labelledby="staffTitle">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Staff</p>
+              <h2 id="staffTitle">注文入力</h2>
+            </div>
+            <button class="ghost-button" type="button" id="resetOrderButton">全リセット</button>
+          </div>
+
+          <div class="staff-layout">
+            <aside class="department-panel" aria-label="部門選択">
+              <h3>部門</h3>
+              <div class="department-list" id="departmentList"></div>
+            </aside>
+
+            <section class="order-panel">
+              <div class="order-panel-head">
+                <div>
+                  <p class="eyebrow">Department</p>
+                  <h3 id="selectedDepartmentName">カフェ</h3>
+                </div>
+                <label class="table-field" id="tableField">
+                  <span>卓番号</span>
+                  <input id="tableNumber" type="text" inputmode="numeric" maxlength="4" placeholder="例 3" />
+                </label>
+              </div>
+
+              <div class="menu-list" id="menuList"></div>
+
+              <div class="payment-area">
+                <section class="payment-panel" aria-labelledby="ticketTitle">
+                  <h3 id="ticketTitle">金券入力</h3>
+                  <div class="ticket-grid" id="ticketInputs"></div>
+                </section>
+
+                <section class="summary-panel" aria-labelledby="summaryTitle">
+                  <h3 id="summaryTitle">会計</h3>
+                  <dl class="summary-list">
+                    <div>
+                      <dt>商品合計</dt>
+                      <dd id="itemTotal">0円</dd>
+                    </div>
+                    <div>
+                      <dt>金券合計</dt>
+                      <dd id="ticketTotal">0円</dd>
+                    </div>
+                    <div>
+                      <dt>差額</dt>
+                      <dd id="balanceTotal">0円</dd>
+                    </div>
+                  </dl>
+                  <p class="status-text" id="paymentStatus">商品を選択してください</p>
+                  <button class="primary-button" type="button" id="openConfirmButton">確認へ進む</button>
+                </section>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="hqView" aria-labelledby="hqTitle">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Headquarters</p>
+              <h2 id="hqTitle">本部ダッシュボード</h2>
+            </div>
+            <button class="ghost-button danger" type="button" id="clearHistoryButton">履歴クリア</button>
+          </div>
+
+          <section class="login-panel" id="hqLogin">
+            <h3>本部認証</h3>
+            <form id="hqLoginForm" class="login-form">
+              <label>
+                <span>パスワード</span>
+                <input id="hqPassword" type="password" autocomplete="current-password" />
+              </label>
+              <button class="primary-button" type="submit">ログイン</button>
+            </form>
+            <p class="status-text" id="loginMessage"></p>
+          </section>
+
+          <div class="dashboard hidden" id="dashboard">
+            <section class="metric-grid" aria-label="集計">
+              <article class="metric-card">
+                <span>総売上</span>
+                <strong id="metricSales">0円</strong>
+              </article>
+              <article class="metric-card">
+                <span>注文数</span>
+                <strong id="metricOrders">0</strong>
+              </article>
+              <article class="metric-card">
+                <span>金券合計</span>
+                <strong id="metricTickets">0円</strong>
+              </article>
+            </section>
+
+            <div class="dashboard-grid">
+              <section class="report-panel">
+                <h3>部門別売上</h3>
+                <div id="departmentSummary" class="summary-table"></div>
+              </section>
+              <section class="report-panel">
+                <h3>金券集計</h3>
+                <div id="ticketSummary" class="summary-table"></div>
+              </section>
+            </div>
+
+            <section class="report-panel">
+              <div class="panel-title-row">
+                <h3>注文履歴</h3>
+                <span id="historyCount">0件</span>
+              </div>
+              <div class="history-list" id="historyList"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="confirm-dialog" id="confirmDialog">
+      <form method="dialog" class="confirm-card">
+        <div class="panel-title-row">
+          <h3>送信確認</h3>
+          <button class="icon-button" value="cancel" aria-label="閉じる" type="submit">×</button>
+        </div>
+        <div id="confirmDetails" class="confirm-details"></div>
+        <div class="dialog-actions">
+          <button class="ghost-button" value="cancel" type="submit">戻る</button>
+          <button class="primary-button" value="send" type="button" id="sendOrderButton">送信</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>

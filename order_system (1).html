@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>注文システム</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: sans-serif;
+      background: #f5f5f3;
+      color: #1a1a1a;
+      display: flex;
+      justify-content: center;
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    .order-wrap {
+      width: 100%;
+      max-width: 560px;
+    }
+
+    .order-title {
+      font-size: 22px;
+      font-weight: 500;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 商品カード */
+    .product-card {
+      background: #fff;
+      border: 0.5px solid rgba(0,0,0,0.15);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .product-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background: #f1efe8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 500;
+      color: #5f5e5a;
+      flex-shrink: 0;
+    }
+
+    .product-name {
+      font-size: 16px;
+      font-weight: 500;
+      flex: 1;
+    }
+
+    /* 数量コントロール */
+    .qty-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .qty-btn {
+      width: 32px;
+      height: 32px;
+      border: 0.5px solid rgba(0,0,0,0.3);
+      border-radius: 8px;
+      background: transparent;
+      color: #1a1a1a;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+      padding: 0;
+    }
+    .qty-btn:hover { background: #f1efe8; }
+    .qty-btn:active { transform: scale(0.95); }
+
+    .qty-input {
+      width: 48px;
+      height: 32px;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 500;
+      color: #1a1a1a;
+      background: #f1efe8;
+      border: 0.5px solid rgba(0,0,0,0.3);
+      border-radius: 8px;
+      cursor: text;
+    }
+    .qty-input:focus {
+      outline: none;
+      border-color: rgba(0,0,0,0.5);
+      background: #fff;
+    }
+    /* number input の矢印を非表示 */
+    .qty-input::-webkit-outer-spin-button,
+    .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .qty-input[type=number] { -moz-appearance: textfield; }
+
+    .reset-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: #888780;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      transition: color 0.15s, background 0.15s;
+      padding: 0;
+      font-size: 16px;
+    }
+    .reset-btn:hover { color: #a32d2d; background: #fcebeb; }
+
+    /* サマリー */
+    .summary-card {
+      background: #f1efe8;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-top: 1.5rem;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: #5f5e5a;
+      padding: 2px 0;
+    }
+
+    .summary-total {
+      display: flex;
+      justify-content: space-between;
+      font-size: 18px;
+      font-weight: 500;
+      color: #1a1a1a;
+      padding-top: 10px;
+      margin-top: 8px;
+      border-top: 0.5px solid rgba(0,0,0,0.15);
+    }
+
+    /* 注文ボタン */
+    .order-btn {
+      margin-top: 1rem;
+      width: 100%;
+      height: 44px;
+      background: #1a1a1a;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: opacity 0.15s;
+    }
+    .order-btn:hover { opacity: 0.85; }
+    .order-btn:active { transform: scale(0.99); }
+
+    /* トースト通知 */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: #1a1a1a;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      opacity: 0;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+<div class="order-wrap">
+  <h1 class="order-title">
+    <i class="ti ti-shopping-cart" aria-hidden="true"></i>
+    注文システム
+  </h1>
+
+  <!-- 商品カードはJSで生成 -->
+  <div id="products"></div>
+
+  <!-- サマリー -->
+  <div class="summary-card">
+    <div class="summary-row" id="sum-a"><span>商品A</span><span>0 点</span></div>
+    <div class="summary-row" id="sum-b"><span>商品B</span><span>0 点</span></div>
+    <div class="summary-row" id="sum-c"><span>商品C</span><span>0 点</span></div>
+    <div class="summary-total">
+      <span>合計</span>
+      <span id="total-qty">0 点</span>
+    </div>
+  </div>
+
+  <!-- 注文ボタン -->
+  <button class="order-btn" onclick="placeOrder()">
+    <i class="ti ti-check" aria-hidden="true"></i>
+    注文する
+  </button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const products = [
+    { id: 'a', name: '商品A', icon: 'A' },
+    { id: 'b', name: '商品B', icon: 'B' },
+    { id: 'c', name: '商品C', icon: 'C' },
+  ];
+
+  // 各商品の数量を管理するオブジェクト
+  const qtys = { a: 0, b: 0, c: 0 };
+
+  // 0未満にならないよう補正
+  function clamp(v) {
+    return Math.max(0, Math.round(v));
+  }
+
+  // 商品カードを全て再描画
+  function render() {
+    const container = document.getElementById('products');
+    container.innerHTML = products.map(p => `
+      <div class="product-card">
+        <div class="product-icon">${p.icon}</div>
+        <span class="product-name">${p.name}</span>
+        <div class="qty-controls">
+          <button class="qty-btn" onclick="change('${p.id}', -1)" aria-label="${p.name}を減らす">
+            <i class="ti ti-minus" style="font-size:14px;"></i>
+          </button>
+          <input
+            class="qty-input"
+            type="number"
+            min="0"
+            value="${qtys[p.id]}"
+            onchange="setVal('${p.id}', this.value)"
+            oninput="setVal('${p.id}', this.value)"
+            aria-label="${p.name}の数量"
+          />
+          <button class="qty-btn" onclick="change('${p.id}', 1)" aria-label="${p.name}を増やす">
+            <i class="ti ti-plus" style="font-size:14px;"></i>
+          </button>
+          <button class="reset-btn" onclick="reset('${p.id}')" aria-label="${p.name}をリセット">
+            <i class="ti ti-refresh"></i>
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    updateSummary();
+  }
+
+  // サマリー部分だけ更新
+  function updateSummary() {
+    products.forEach(p => {
+      document.getElementById('sum-' + p.id).innerHTML =
+        `<span>${p.name}</span><span>${qtys[p.id]} 点</span>`;
+    });
+    const total = Object.values(qtys).reduce((sum, v) => sum + v, 0);
+    document.getElementById('total-qty').textContent = total + ' 点';
+  }
+
+  // ＋ / − ボタン
+  function change(id, delta) {
+    qtys[id] = clamp(qtys[id] + delta);
+    render();
+  }
+
+  // 直接入力
+  function setVal(id, val) {
+    const n = parseInt(val, 10);
+    qtys[id] = isNaN(n) ? 0 : clamp(n);
+    updateSummary();
+  }
+
+  // リセットボタン
+  function reset(id) {
+    qtys[id] = 0;
+    render();
+  }
+
+  // 注文ボタン
+  function placeOrder() {
+    const total = Object.values(qtys).reduce((sum, v) => sum + v, 0);
+    if (total === 0) {
+      showToast('商品を選択してください');
+      return;
+    }
+    const lines = products
+      .filter(p => qtys[p.id] > 0)
+      .map(p => `${p.name} × ${qtys[p.id]}`)
+      .join('、');
+    showToast('注文しました：' + lines);
+
+    // 注文後にリセット
+    products.forEach(p => qtys[p.id] = 0);
+    render();
+  }
+
+  // トースト通知
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  // 初期描画
+  render();
+</script>
+
+</body>
+</html>

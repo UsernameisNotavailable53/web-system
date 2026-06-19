@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>店員用 | 文化祭 販売管理</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-page="staff">
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Staff Site</p>
+          <h1>店員用 注文入力</h1>
+        </div>
+        <button class="ghost-button hidden" type="button" id="logoutButton">ログアウト</button>
+      </header>
+
+      <main>
+        <section class="auth-panel" id="authPanel">
+          <h2>ログイン</h2>
+          <form class="login-form" id="authForm">
+            <label>
+              <span>メールアドレス</span>
+              <input id="authEmail" type="email" autocomplete="username" />
+            </label>
+            <label>
+              <span>パスワード</span>
+              <input id="authPassword" type="password" autocomplete="current-password" />
+            </label>
+            <button class="primary-button" type="submit">ログイン</button>
+          </form>
+          <p class="status-text" id="authMessage"></p>
+        </section>
+
+        <section class="hidden" id="staffApp" aria-labelledby="staffTitle">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Order</p>
+              <h2 id="staffTitle">注文入力</h2>
+            </div>
+            <button class="ghost-button" type="button" id="resetOrderButton">全リセット</button>
+          </div>
+
+          <div class="staff-layout">
+            <aside class="department-panel" aria-label="部門選択">
+              <h3>部門</h3>
+              <div class="department-list" id="departmentList"></div>
+            </aside>
+
+            <section class="order-panel">
+              <div class="order-panel-head">
+                <div>
+                  <p class="eyebrow">Department</p>
+                  <h3 id="selectedDepartmentName">カフェ</h3>
+                </div>
+                <label class="table-field" id="tableField">
+                  <span>卓番号</span>
+                  <input id="tableNumber" type="text" inputmode="numeric" maxlength="4" placeholder="例 3" />
+                </label>
+              </div>
+
+              <div class="menu-list" id="menuList"></div>
+
+              <div class="payment-area">
+                <section class="payment-panel" aria-labelledby="ticketTitle">
+                  <div class="panel-title-row">
+                    <h3 id="ticketTitle">金券入力</h3>
+                    <span class="hint-text">受け取った枚数</span>
+                  </div>
+                  <div class="ticket-grid" id="ticketInputs"></div>
+                </section>
+
+                <section class="summary-panel" aria-labelledby="summaryTitle">
+                  <h3 id="summaryTitle">会計</h3>
+                  <dl class="summary-list">
+                    <div>
+                      <dt>商品合計</dt>
+                      <dd id="itemTotal">0円</dd>
+                    </div>
+                    <div>
+                      <dt>金券合計</dt>
+                      <dd id="ticketTotal">0円</dd>
+                    </div>
+                    <div>
+                      <dt>差額</dt>
+                      <dd id="balanceTotal">0円</dd>
+                    </div>
+                  </dl>
+                  <p class="status-text" id="paymentStatus">商品を選択してください</p>
+                  <button class="primary-button" type="button" id="openConfirmButton">確認へ進む</button>
+                </section>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="confirm-dialog" id="confirmDialog">
+      <form method="dialog" class="confirm-card">
+        <div class="panel-title-row">
+          <h3>送信確認</h3>
+          <button class="icon-button" value="cancel" aria-label="閉じる" type="submit">×</button>
+        </div>
+        <div id="confirmDetails" class="confirm-details"></div>
+        <div class="dialog-actions">
+          <button class="ghost-button" value="cancel" type="submit">戻る</button>
+          <button class="primary-button" value="send" type="button" id="sendOrderButton">送信</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

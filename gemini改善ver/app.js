@@ -5,8 +5,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
-import { getDatabase, onValue, push, ref, remove } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
-
+import { getDatabase, push, ref, remove, onChildAdded, get } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
 // この設定値はFirebaseのWebアプリ用設定です。秘密鍵ではないのでHTML/JS内で使えます。
 const firebaseConfig = {
   apiKey: "AIzaSyCaWvMwLNWaaJJ9KOc04v370rxBf9dOAqY",
@@ -602,7 +601,7 @@ function initHqPage() {
         Object.keys(initialData).forEach(key => {
           state.orders.push({ id: key, ...initialData[key] });
         });
-        state.orders.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        state.orders.sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
         renderDashboard();
       }
 

@@ -177,8 +177,6 @@ function createMenuItem({ id, name, price }) {
   return { id, name, price: numberPrice };
 }
 
-// 部門を増やす時は、この関数を使って下のように追加します。
-// addDepartment({ id: "bazaar", name: "バザー", note: "本部入力", requiresTable: false, menu: [{ id: "item", name: "商品", price: 100 }] });
 function addDepartment(departmentConfig) {
   const department = createDepartment(departmentConfig);
   if (departments.some((current) => current.id === department.id)) {
@@ -233,7 +231,6 @@ function showToast(message) {
   }, 2600);
 }
 
-// Realtime Databaseは { 自動ID: 注文データ } の形で返るので、画面用の配列へ直します。
 function snapshotToOrders(snapshot) {
   const data = snapshot.val() || {};
   return Object.entries(data)
@@ -402,7 +399,6 @@ function initStaffPage() {
     els.sendOrderButton.disabled = true;
     els.sendOrderButton.textContent = "送信中";
     try {
-      // pushはRealtime Database側で注文ごとの一意なIDを作って保存します。
       await push(ordersRef, order);
       els.confirmDialog.close();
       resetOrder();
@@ -496,6 +492,7 @@ function initHqPage() {
     els.metricTickets.textContent = yen.format(ticketTotal);
     els.historyCount.textContent = `${state.orders.length}件`;
 
+    // 部門別売上の描画
     els.departmentSummary.innerHTML = departments
       .map((department) => {
         const total = state.orders
@@ -505,16 +502,43 @@ function initHqPage() {
       })
       .join("");
 
-    els.ticketSummary.innerHTML = tickets
-      .map((ticket) => {
-        const count = state.orders.reduce((sum, order) => {
-          const row = order.tickets.find((item) => item.id === ticket.id);
-          return sum + (row ? row.count : 0);
-        }, 0);
-        return `<div class="summary-row"><span>${ticket.label}</span><strong>${count}枚 / ${yen.format(count * ticket.value)}</strong></div>`;
-      })
-      .join("");
+    // ★ 変更箇所：金券集計をテーブル（表）形式にして、部門ごとの枚数を表示 ★
+    let tktHtml = `<table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.95em;">`;
+    tktHtml += `<thead><tr style="border-bottom: 2px solid var(--line, #d9e1dc); text-align: left;">
+      <th style="padding: 8px 4px;">金券種別</th>`;
+    departments.forEach(dept => {
+      tktHtml += `<th style="padding: 8px 4px;">${dept.name}</th>`;
+    });
+    tktHtml += `<th style="padding: 8px 4px;">合計</th><th style="padding: 8px 4px;">小計</th></tr></thead><tbody>`;
 
+    tickets.forEach((ticket) => {
+      // 全部門の合計枚数
+      const totalCount = state.orders.reduce((sum, order) => {
+        const row = order.tickets.find((item) => item.id === ticket.id);
+        return sum + (row ? row.count : 0);
+      }, 0);
+
+      tktHtml += `<tr style="border-bottom: 1px solid var(--line, #d9e1dc);">
+        <td style="padding: 8px 4px;">${ticket.label}</td>`;
+
+      // 各部門の枚数
+      departments.forEach(dept => {
+        const deptCount = state.orders
+          .filter(order => order.departmentId === dept.id)
+          .reduce((sum, order) => {
+            const row = order.tickets.find((item) => item.id === ticket.id);
+            return sum + (row ? row.count : 0);
+          }, 0);
+        tktHtml += `<td style="padding: 8px 4px;">${deptCount}枚</td>`;
+      });
+
+      tktHtml += `<td style="padding: 8px 4px; font-weight: bold;">${totalCount}枚</td>
+        <td style="padding: 8px 4px; font-weight: bold;">${yen.format(totalCount * ticket.value)}</td></tr>`;
+    });
+    tktHtml += `</tbody></table>`;
+    els.ticketSummary.innerHTML = tktHtml;
+
+    // 履歴リストの描画
     els.historyList.innerHTML =
       state.orders
         .map((order) => {
@@ -544,7 +568,7 @@ function initHqPage() {
       els.hqLogin.classList.add("hidden");
       els.dashboard.classList.remove("hidden");
       els.loginMessage.textContent = "";
-      startListeningOrders(); // ←★ここを新しい関数に変更★
+      startListeningOrders(); 
     } else {
       els.loginMessage.textContent = "パスワードが違います";
       els.loginMessage.className = "status-text warn";
@@ -594,7 +618,6 @@ function initHqPage() {
     state.orders = [];
 
     try {
-      // 1. 最初に全データを1回だけ取得（通信節約）
       const snapshot = await get(ordersRef);
       if (snapshot.exists()) {
         const initialData = snapshot.val();
@@ -605,12 +628,13 @@ function initHqPage() {
         renderDashboard();
       }
 
-      // 2. 以降は「新着注文1件」だけを都度受信
       onChildAdded(ordersRef, (childSnapshot) => {
         const newOrderId = childSnapshot.key;
         const exists = state.orders.some(o => o.id === newOrderId);
         if (!exists) {
           state.orders.push({ id: newOrderId, ...childSnapshot.val() });
+          // 並び替え（最新を一番上にする場合はここでソート）
+          state.orders.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
           renderDashboard();
         }
       });

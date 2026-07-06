@@ -1,27 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
-import { getDatabase, push, ref, remove, onChildAdded, get } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
-// この設定値はFirebaseのWebアプリ用設定です。秘密鍵ではないのでHTML/JS内で使えます。
-const firebaseConfig = {
-  apiKey: "AIzaSyCaWvMwLNWaaJJ9KOc04v370rxBf9dOAqY",
-  authDomain: "web-systemd.firebaseapp.com",
-  databaseURL: "https://web-systemd-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "web-systemd",
-  storageBucket: "web-systemd.firebasestorage.app",
-  messagingSenderId: "338748900323",
-  appId: "1:338748900323:web:17fdddd53921d09bf6d6d6",
-  measurementId: "G-1B6WS54TLY",
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const database = getDatabase(app);
-const ordersRef = ref(database, "orders");
+// Firebaseの設定とインポートはすべて削除済み
 
 const departments = [
   createDepartment({
@@ -62,14 +39,16 @@ addDepartment({
   ],
 });
 
-// 金券の種類はここで固定。店員は会計ごとに「受け取った枚数」だけ入力します。
+// ★ 金券の種類を拡充しました！不要なものは行の先頭に「//」を付ければ消せます ★
 const tickets = [
-  { id: "ticket500", label: "500円券", value: 500 },
+  { id: "ticket50", label: "50円券", value: 50 },
   { id: "ticket100", label: "100円券", value: 100 },
+  { id: "ticket500", label: "500円券", value: 500 },
+  { id: "ticket1000", label: "1000円券", value: 1000 },
+  { id: "ticket_discount", label: "割引金券", value: 0 }, // 値段がバラバラなら一旦0円（または特定の固定値に）
 ];
 
 const page = document.body.dataset.page;
-const authRequired = document.body.dataset.auth !== "none";
 const hqPassword = "honbu2026";
 
 const state = {
@@ -78,7 +57,13 @@ const state = {
   ticketCounts: {},
   orders: [],
   hqUnlocked: false,
-  user: null,
+  // ★ 緊急金券用の状態管理
+  emergencyTicket: {
+    active: false,
+    name: "緊急用",
+    value: 0,
+    count: 0
+  }
 };
 
 const yen = new Intl.NumberFormat("ja-JP", {
@@ -91,80 +76,11 @@ function $(selector) {
   return document.querySelector(selector);
 }
 
-function initAuthGate({ onSignedIn, onSignedOut }) {
-  const authPanel = $("#authPanel");
-  const authForm = $("#authForm");
-  const authEmail = $("#authEmail");
-  const authPassword = $("#authPassword");
-  const authMessage = $("#authMessage");
-  const logoutButton = $("#logoutButton");
-  const authSubmitButton = authForm.querySelector("button[type='submit']");
-
-  authForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    authMessage.textContent = "";
-    authSubmitButton.disabled = true;
-    authSubmitButton.textContent = "ログイン中";
-    try {
-      await signInWithEmailAndPassword(auth, authEmail.value.trim(), authPassword.value);
-    } catch (error) {
-      console.error(error);
-      authMessage.textContent = getAuthErrorMessage(error);
-      authMessage.className = "status-text warn";
-    } finally {
-      authSubmitButton.disabled = false;
-      authSubmitButton.textContent = "ログイン";
-    }
-  });
-
-  logoutButton.addEventListener("click", async () => {
-    await signOut(auth);
-  });
-
-  onAuthStateChanged(auth, (user) => {
-    state.user = user;
-    authPanel.classList.toggle("hidden", Boolean(user));
-    logoutButton.classList.toggle("hidden", !user);
-    if (user) {
-      authPassword.value = "";
-      onSignedIn(user);
-    } else {
-      onSignedOut();
-    }
-  });
-}
-
-function getAuthErrorMessage(error) {
-  switch (error.code) {
-    case "auth/invalid-email":
-      return "メールアドレスの形式が正しくありません";
-    case "auth/user-not-found":
-    case "auth/invalid-credential":
-      return "メールアドレスかパスワードが違います";
-    case "auth/wrong-password":
-      return "パスワードが違います";
-    case "auth/operation-not-allowed":
-      return "Firebaseでメール/パスワード認証が有効になっていません";
-    case "auth/network-request-failed":
-      return "通信に失敗しました。ネット接続を確認してください";
-    default:
-      return `ログインに失敗しました: ${error.code || "unknown"}`;
-  }
-}
-
 function createDepartment({ id, name, note = "", requiresTable = false, menu }) {
-  if (!id || !name) {
-    throw new Error("部門にはidとnameが必要です");
-  }
-  if (!Array.isArray(menu) || menu.length === 0) {
-    throw new Error(`${name}には1つ以上のメニューが必要です`);
-  }
-
+  if (!id || !name) throw new Error("部門にはidとnameが必要です");
+  if (!Array.isArray(menu) || menu.length === 0) throw new Error(`${name}には1つ以上のメニューが必要です`);
   return {
-    id,
-    name,
-    note,
-    requiresTable: Boolean(requiresTable),
+    id, name, note, requiresTable: Boolean(requiresTable),
     menu: menu.map(createMenuItem),
   };
 }
@@ -179,9 +95,6 @@ function createMenuItem({ id, name, price }) {
 
 function addDepartment(departmentConfig) {
   const department = createDepartment(departmentConfig);
-  if (departments.some((current) => current.id === department.id)) {
-    throw new Error(`部門ID「${department.id}」が重複しています`);
-  }
   departments.push(department);
   return department;
 }
@@ -196,13 +109,8 @@ function clampQuantity(value) {
   return Math.min(10, Math.max(0, number));
 }
 
-function getQuantity(itemId) {
-  return state.quantities[itemId] || 0;
-}
-
-function getTicketCount(ticketId) {
-  return state.ticketCounts[ticketId] || 0;
-}
+function getQuantity(itemId) { return state.quantities[itemId] || 0; }
+function getTicketCount(ticketId) { return state.ticketCounts[ticketId] || 0; }
 
 function selectedItems() {
   return currentDepartment()
@@ -213,12 +121,16 @@ function selectedItems() {
 function getTotals() {
   const department = currentDepartment();
   const itemTotal = department.menu.reduce((sum, item) => sum + item.price * getQuantity(item.id), 0);
-  const ticketTotal = tickets.reduce((sum, ticket) => sum + ticket.value * getTicketCount(ticket.id), 0);
-  return {
-    itemTotal,
-    ticketTotal,
-    balance: ticketTotal - itemTotal,
-  };
+  
+  // 通常金券の合計
+  let ticketTotal = tickets.reduce((sum, ticket) => sum + ticket.value * getTicketCount(ticket.id), 0);
+  
+  // 緊急金券が有効なら加算
+  if (state.emergencyTicket.active && state.emergencyTicket.count > 0) {
+    ticketTotal += state.emergencyTicket.value * state.emergencyTicket.count;
+  }
+
+  return { itemTotal, ticketTotal, balance: ticketTotal - itemTotal };
 }
 
 function showToast(message) {
@@ -226,18 +138,10 @@ function showToast(message) {
   if (!toast) return;
   toast.textContent = message;
   toast.classList.add("show");
-  window.setTimeout(() => {
-    toast.classList.remove("show");
-  }, 2600);
+  window.setTimeout(() => toast.classList.remove("show"), 2600);
 }
 
-function snapshotToOrders(snapshot) {
-  const data = snapshot.val() || {};
-  return Object.entries(data)
-    .map(([firebaseId, order]) => ({ firebaseId, ...order }))
-    .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
-}
-
+// === スタッフ（店員用）の処理 ===
 function initStaffPage() {
   const els = {
     staffApp: $("#staffApp"),
@@ -258,56 +162,80 @@ function initStaffPage() {
     sendOrderButton: $("#sendOrderButton"),
   };
 
-  function renderDepartments() {
-    els.departmentList.innerHTML = departments
-      .map(
-        (department) => `
-          <button class="department-button ${department.id === state.departmentId ? "active" : ""}" type="button" data-department="${department.id}">
-            ${department.name}
-            <span>${department.note}</span>
-          </button>
-        `,
-      )
-      .join("");
-  }
+  els.staffApp.classList.remove("hidden");
+  document.getElementById("authPanel")?.classList.add("hidden");
 
-  function renderMenu() {
+  function renderStaff() {
+    els.departmentList.innerHTML = departments.map((department) => `
+      <button class="department-button ${department.id === state.departmentId ? "active" : ""}" type="button" data-department="${department.id}">
+        ${department.name}<span>${department.note}</span>
+      </button>`).join("");
+
     const department = currentDepartment();
     els.selectedDepartmentName.textContent = department.name;
     els.tableField.classList.toggle("hidden", !department.requiresTable);
-    els.menuList.innerHTML = department.menu
-      .map(
-        (item) => `
-          <article class="menu-item">
-            <div>
-              <p class="menu-name">${item.name}</p>
-              <p class="menu-price">${yen.format(item.price)}</p>
-            </div>
-            <div class="qty-control" aria-label="${item.name}の数量操作">
-              <button class="qty-button" type="button" data-action="minus" data-item="${item.id}" aria-label="${item.name}を減らす">−</button>
-              <input class="qty-input" type="number" inputmode="numeric" min="0" max="10" value="${getQuantity(item.id)}" data-item="${item.id}" aria-label="${item.name}の数量" />
-              <button class="qty-button" type="button" data-action="plus" data-item="${item.id}" aria-label="${item.name}を増やす">＋</button>
-            </div>
-          </article>
-        `,
-      )
-      .join("");
-  }
+    
+    els.menuList.innerHTML = department.menu.map((item) => `
+      <article class="menu-item">
+        <div><p class="menu-name">${item.name}</p><p class="menu-price">${yen.format(item.price)}</p></div>
+        <div class="qty-control">
+          <button class="qty-button" type="button" data-action="minus" data-item="${item.id}">−</button>
+          <input class="qty-input" type="number" min="0" max="10" value="${getQuantity(item.id)}" data-item="${item.id}" />
+          <button class="qty-button" type="button" data-action="plus" data-item="${item.id}">＋</button>
+        </div>
+      </article>`).join("");
 
-  function renderTickets() {
-    els.ticketInputs.innerHTML = tickets
-      .map(
-        (ticket) => `
-          <label class="ticket-input">
-            <span>${ticket.label}</span>
-            <input type="number" inputmode="numeric" min="0" value="${getTicketCount(ticket.id)}" data-ticket="${ticket.id}" aria-label="${ticket.label}の枚数" />
+    // 通常金券のレンダリング
+    let ticketHtml = tickets.map((ticket) => `
+      <label class="ticket-input">
+        <span>${ticket.label}</span>
+        <input type="number" min="0" value="${getTicketCount(ticket.id)}" data-ticket="${ticket.id}" />
+      </label>`).join("");
+
+    // ★ 緊急金券の入力エリアを通常金券の下に結合 ★
+    ticketHtml += `
+      <div style="grid-column: 1 / -1; border-top: 1px dashed var(--line, #d9e1dc); margin: 12px 0; padding-top: 12px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer; margin-bottom: 8px;">
+          <input type="checkbox" id="emgToggle" ${state.emergencyTicket.active ? "checked" : ""} />
+          <span style="color: var(--danger, #b73636);">🚨 緊急金券を使用する</span>
+        </label>
+        <div id="emgFields" style="display: ${state.emergencyTicket.active ? "grid" : "none"}; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; background: rgba(183,54,54,0.05); padding: 10px; border-radius: 6px; border: 1px solid rgba(183,54,54,0.15);">
+          <label class="ticket-input" style="margin:0;">
+            <span>金券名 (〇〇)</span>
+            <input type="text" id="emgName" value="${state.emergencyTicket.name}" placeholder="例: 特別割引" />
           </label>
-        `,
-      )
-      .join("");
-  }
+          <label class="ticket-input" style="margin:0;">
+            <span>1枚の金額 (円)</span>
+            <input type="number" min="0" id="emgValue" value="${state.emergencyTicket.value}" />
+          </label>
+          <label class="ticket-input" style="margin:0;">
+            <span>枚数</span>
+            <input type="number" min="0" id="emgCount" value="${state.emergencyTicket.count}" />
+          </label>
+        </div>
+      </div>
+    `;
+    els.ticketInputs.innerHTML = ticketHtml;
 
-  function renderTotals() {
+    // 緊急金券周りのイベントを再バインド
+    $("#emgToggle").addEventListener("change", (e) => {
+      state.emergencyTicket.active = e.target.checked;
+      renderStaff();
+    });
+    $("#emgName").addEventListener("input", (e) => {
+      state.emergencyTicket.name = e.target.value.trim() || "緊急用";
+    });
+    $("#emgValue").addEventListener("input", (e) => {
+      const val = Number.parseInt(e.target.value, 10);
+      state.emergencyTicket.value = Number.isNaN(val) ? 0 : Math.max(0, val);
+      renderStaff();
+    });
+    $("#emgCount").addEventListener("input", (e) => {
+      const val = Number.parseInt(e.target.value, 10);
+      state.emergencyTicket.count = Number.isNaN(val) ? 0 : Math.max(0, val);
+      renderStaff();
+    });
+
     const totals = getTotals();
     const hasItems = selectedItems().length > 0;
     els.itemTotal.textContent = yen.format(totals.itemTotal);
@@ -316,30 +244,16 @@ function initStaffPage() {
     els.openConfirmButton.disabled = !hasItems;
 
     els.paymentStatus.className = "status-text";
-    if (!hasItems) {
-      els.paymentStatus.textContent = "商品を選択してください";
-    } else if (totals.balance === 0) {
-      els.paymentStatus.textContent = "金額が一致しています";
-      els.paymentStatus.classList.add("ok");
-    } else if (totals.balance > 0) {
-      els.paymentStatus.textContent = "金券が商品合計を上回っています";
-      els.paymentStatus.classList.add("warn");
-    } else {
-      els.paymentStatus.textContent = "金券が不足しています";
-      els.paymentStatus.classList.add("warn");
-    }
-  }
-
-  function renderStaff() {
-    renderDepartments();
-    renderMenu();
-    renderTickets();
-    renderTotals();
+    if (!hasItems) els.paymentStatus.textContent = "商品を選択してください";
+    else if (totals.balance === 0) { els.paymentStatus.textContent = "金額が一致しています"; els.paymentStatus.classList.add("ok"); }
+    else if (totals.balance > 0) { els.paymentStatus.textContent = "金券が商品合計を上回っています"; els.paymentStatus.classList.add("warn"); }
+    else { els.paymentStatus.textContent = "金券が不足しています"; els.paymentStatus.classList.add("warn"); }
   }
 
   function resetOrder() {
     state.quantities = {};
     state.ticketCounts = {};
+    state.emergencyTicket = { active: false, name: "緊急用", value: 0, count: 0 };
     els.tableNumber.value = "";
     renderStaff();
   }
@@ -351,16 +265,13 @@ function initStaffPage() {
       localId: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
       createdAt: new Date().toISOString(),
       createdAtMs: Date.now(),
-      createdBy: state.user ? state.user.email : "",
-      createdByUid: state.user ? state.user.uid : "",
       departmentId: department.id,
       departmentName: department.name,
       tableNumber: department.requiresTable ? els.tableNumber.value.trim() : "",
       items: selectedItems(),
-      tickets: tickets.map((ticket) => ({
-        ...ticket,
-        count: getTicketCount(ticket.id),
-      })),
+      tickets: tickets.map((ticket) => ({ ...ticket, count: getTicketCount(ticket.id) })),
+      // 緊急金券情報も送信データに含める
+      emergencyTicket: state.emergencyTicket.active ? { ...state.emergencyTicket } : null,
       itemTotal: totals.itemTotal,
       ticketTotal: totals.ticketTotal,
       balance: totals.balance,
@@ -369,19 +280,14 @@ function initStaffPage() {
 
   function openConfirm() {
     const order = buildOrder();
-    const itemRows = order.items
-      .map(
-        (item) =>
-          `<div class="summary-row"><span>${item.name} × ${item.quantity}</span><strong>${yen.format(item.price * item.quantity)}</strong></div>`,
-      )
-      .join("");
-    const ticketRows = order.tickets
-      .filter((ticket) => ticket.count > 0)
-      .map(
-        (ticket) =>
-          `<div class="summary-row"><span>${ticket.label} × ${ticket.count}枚</span><strong>${yen.format(ticket.value * ticket.count)}</strong></div>`,
-      )
-      .join("");
+    const itemRows = order.items.map((item) => `<div class="summary-row"><span>${item.name} × ${item.quantity}</span><strong>${yen.format(item.price * item.quantity)}</strong></div>`).join("");
+    
+    let ticketRows = order.tickets.filter((ticket) => ticket.count > 0).map((ticket) => `<div class="summary-row"><span>${ticket.label} × ${ticket.count}枚</span><strong>${yen.format(ticket.value * ticket.count)}</strong></div>`).join("");
+    
+    // 確認画面にも緊急金券を表示
+    if (order.emergencyTicket && order.emergencyTicket.count > 0) {
+      ticketRows += `<div class="summary-row" style="color: var(--danger, #b73636);"><span>⚠️ [緊急] ${order.emergencyTicket.name} (${yen.format(order.emergencyTicket.value)}) × ${order.emergencyTicket.count}枚</span><strong>${yen.format(order.emergencyTicket.value * order.emergencyTicket.count)}</strong></div>`;
+    }
 
     els.confirmDetails.innerHTML = `
       <div class="summary-row"><span>部門</span><strong>${order.departmentName}</strong></div>
@@ -399,7 +305,13 @@ function initStaffPage() {
     els.sendOrderButton.disabled = true;
     els.sendOrderButton.textContent = "送信中";
     try {
-      await push(ordersRef, order);
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order)
+      });
+      if (!response.ok) throw new Error("Network response was not ok");
+      
       els.confirmDialog.close();
       resetOrder();
       showToast("送信しました");
@@ -412,8 +324,8 @@ function initStaffPage() {
     }
   }
 
-  els.departmentList.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-department]");
+  els.departmentList.addEventListener("click", (e) => {
+    const button = e.target.closest("[data-department]");
     if (!button) return;
     state.departmentId = button.dataset.department;
     state.quantities = {};
@@ -421,8 +333,8 @@ function initStaffPage() {
     renderStaff();
   });
 
-  els.menuList.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-action]");
+  els.menuList.addEventListener("click", (e) => {
+    const button = e.target.closest("[data-action]");
     if (!button) return;
     const itemId = button.dataset.item;
     const delta = button.dataset.action === "plus" ? 1 : -1;
@@ -430,42 +342,29 @@ function initStaffPage() {
     renderStaff();
   });
 
-  els.menuList.addEventListener("input", (event) => {
-    if (!event.target.matches(".qty-input")) return;
-    state.quantities[event.target.dataset.item] = clampQuantity(event.target.value);
-    event.target.value = state.quantities[event.target.dataset.item];
-    renderTotals();
+  els.menuList.addEventListener("input", (e) => {
+    if (!e.target.matches(".qty-input")) return;
+    state.quantities[e.target.dataset.item] = clampQuantity(e.target.value);
+    e.target.value = state.quantities[e.target.dataset.item];
+    renderStaff();
   });
 
-  els.ticketInputs.addEventListener("input", (event) => {
-    if (!event.target.matches("[data-ticket]")) return;
-    const value = Number.parseInt(event.target.value, 10);
-    state.ticketCounts[event.target.dataset.ticket] = Number.isNaN(value) ? 0 : Math.max(0, value);
-    event.target.value = state.ticketCounts[event.target.dataset.ticket];
-    renderTotals();
+  els.ticketInputs.addEventListener("input", (e) => {
+    if (!e.target.matches("[data-ticket]")) return;
+    const value = Number.parseInt(e.target.value, 10);
+    state.ticketCounts[e.target.dataset.ticket] = Number.isNaN(value) ? 0 : Math.max(0, value);
+    e.target.value = state.ticketCounts[e.target.dataset.ticket];
+    renderStaff();
   });
 
   els.resetOrderButton.addEventListener("click", resetOrder);
   els.openConfirmButton.addEventListener("click", openConfirm);
   els.sendOrderButton.addEventListener("click", sendOrder);
 
-  if (authRequired) {
-    initAuthGate({
-      onSignedIn() {
-        els.staffApp.classList.remove("hidden");
-        renderStaff();
-      },
-      onSignedOut() {
-        els.staffApp.classList.add("hidden");
-        resetOrder();
-      },
-    });
-  } else {
-    els.staffApp.classList.remove("hidden");
-    renderStaff();
-  }
+  renderStaff();
 }
 
+// === 本部（集計用）の処理 ===
 function initHqPage() {
   const els = {
     hqLogin: $("#hqLogin"),
@@ -482,7 +381,9 @@ function initHqPage() {
     historyCount: $("#historyCount"),
     clearHistoryButton: $("#clearHistoryButton"),
   };
-  let unsubscribeOrders = null;
+
+  els.hqLogin.classList.remove("hidden");
+  document.getElementById("authPanel")?.classList.add("hidden");
 
   function renderDashboard() {
     const sales = state.orders.reduce((sum, order) => sum + order.itemTotal, 0);
@@ -492,74 +393,91 @@ function initHqPage() {
     els.metricTickets.textContent = yen.format(ticketTotal);
     els.historyCount.textContent = `${state.orders.length}件`;
 
-    // 部門別売上の描画
-    els.departmentSummary.innerHTML = departments
-      .map((department) => {
+    els.departmentSummary.innerHTML = departments.map((department) => {
         const total = state.orders
           .filter((order) => order.departmentId === department.id)
           .reduce((sum, order) => sum + order.itemTotal, 0);
         return `<div class="summary-row"><span>${department.name}</span><strong>${yen.format(total)}</strong></div>`;
-      })
-      .join("");
+    }).join("");
 
-    // ★ 変更箇所：金券集計をテーブル（表）形式にして、部門ごとの枚数を表示 ★
+    // 金券集計のテーブル化
     let tktHtml = `<table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.95em;">`;
     tktHtml += `<thead><tr style="border-bottom: 2px solid var(--line, #d9e1dc); text-align: left;">
       <th style="padding: 8px 4px;">金券種別</th>`;
-    departments.forEach(dept => {
-      tktHtml += `<th style="padding: 8px 4px;">${dept.name}</th>`;
-    });
+    departments.forEach(dept => { tktHtml += `<th style="padding: 8px 4px;">${dept.name}</th>`; });
     tktHtml += `<th style="padding: 8px 4px;">合計</th><th style="padding: 8px 4px;">小計</th></tr></thead><tbody>`;
 
+    // 1. 通常金券の集計行
     tickets.forEach((ticket) => {
-      // 全部門の合計枚数
       const totalCount = state.orders.reduce((sum, order) => {
         const row = order.tickets.find((item) => item.id === ticket.id);
         return sum + (row ? row.count : 0);
       }, 0);
-
-      tktHtml += `<tr style="border-bottom: 1px solid var(--line, #d9e1dc);">
-        <td style="padding: 8px 4px;">${ticket.label}</td>`;
-
-      // 各部門の枚数
+      tktHtml += `<tr style="border-bottom: 1px solid var(--line, #d9e1dc);"><td style="padding: 8px 4px;">${ticket.label}</td>`;
       departments.forEach(dept => {
-        const deptCount = state.orders
-          .filter(order => order.departmentId === dept.id)
-          .reduce((sum, order) => {
+        const deptCount = state.orders.filter(order => order.departmentId === dept.id).reduce((sum, order) => {
             const row = order.tickets.find((item) => item.id === ticket.id);
             return sum + (row ? row.count : 0);
           }, 0);
         tktHtml += `<td style="padding: 8px 4px;">${deptCount}枚</td>`;
       });
-
-      tktHtml += `<td style="padding: 8px 4px; font-weight: bold;">${totalCount}枚</td>
-        <td style="padding: 8px 4px; font-weight: bold;">${yen.format(totalCount * ticket.value)}</td></tr>`;
+      tktHtml += `<td style="padding: 8px 4px; font-weight: bold;">${totalCount}枚</td><td style="padding: 8px 4px; font-weight: bold;">${yen.format(totalCount * ticket.value)}</td></tr>`;
     });
+
+    // 2. ★ 緊急金券の集計行（A案：1つの行にすべて合算して表示） ★
+    const emgTotalCount = state.orders.reduce((sum, order) => {
+      return sum + (order.emergencyTicket ? order.emergencyTicket.count : 0);
+    }, 0);
+    const emgTotalValue = state.orders.reduce((sum, order) => {
+      return sum + (order.emergencyTicket ? (order.emergencyTicket.value * order.emergencyTicket.count) : 0);
+    }, 0);
+
+    tktHtml += `<tr style="border-bottom: 1px solid var(--line, #d9e1dc); background: rgba(183,54,54,0.03); color: var(--danger, #b73636);"><td style="padding: 8px 4px; font-weight: bold;">🚨 緊急金券(合算)</td>`;
+    departments.forEach(dept => {
+      const deptEmgCount = state.orders.filter(order => order.departmentId === dept.id).reduce((sum, order) => {
+        return sum + (order.emergencyTicket ? order.emergencyTicket.count : 0);
+      }, 0);
+      tktHtml += `<td style="padding: 8px 4px;">${deptEmgCount}枚</td>`;
+    });
+    tktHtml += `<td style="padding: 8px 4px; font-weight: bold;">${emgTotalCount}枚</td><td style="padding: 8px 4px; font-weight: bold;">${yen.format(emgTotalValue)}</td></tr>`;
+
     tktHtml += `</tbody></table>`;
     els.ticketSummary.innerHTML = tktHtml;
 
-    // 履歴リストの描画
-    els.historyList.innerHTML =
-      state.orders
-        .map((order) => {
-          const time = new Date(order.createdAt).toLocaleString("ja-JP", {
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+    els.historyList.innerHTML = state.orders.map((order) => {
+          const time = new Date(order.createdAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
           const items = order.items.map((item) => `${item.name}×${item.quantity}`).join("、");
           const table = order.tableNumber ? ` / 卓${order.tableNumber}` : "";
+          
+          // 履歴部分には、自由入力された具体的な「金券名」を表示して追えるようにします
+          let emgText = "";
+          if (order.emergencyTicket && order.emergencyTicket.count > 0) {
+            emgText = ` [緊急: ${order.emergencyTicket.name}(${yen.format(order.emergencyTicket.value)})×${order.emergencyTicket.count}枚]`;
+          }
+
           return `
             <article class="history-item">
               <strong>${time} ${order.departmentName}${table} ${yen.format(order.itemTotal)}</strong>
               <p>${items}</p>
-              <p>金券 ${yen.format(order.ticketTotal)} / 差額 ${order.balance >= 0 ? "+" : ""}${yen.format(order.balance)}</p>
+              <p>金券 ${yen.format(order.ticketTotal)}${emgText} / 差額 ${order.balance >= 0 ? "+" : ""}${yen.format(order.balance)}</p>
             </article>
           `;
-        })
-        .join("") || `<p class="status-text">注文履歴はまだありません</p>`;
+        }).join("") || `<p class="status-text">注文履歴はまだありません</p>`;
   }
+
+  async function fetchOrders() {
+    try {
+      const response = await fetch('/api/orders');
+      if (!response.ok) return;
+      const data = await response.json();
+      state.orders = data.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+      renderDashboard();
+    } catch (err) {
+      console.error("データ取得エラー:", err);
+    }
+  }
+
+  let fetchInterval;
 
   els.hqLoginForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -568,7 +486,9 @@ function initHqPage() {
       els.hqLogin.classList.add("hidden");
       els.dashboard.classList.remove("hidden");
       els.loginMessage.textContent = "";
-      startListeningOrders(); 
+      
+      fetchOrders();
+      fetchInterval = setInterval(fetchOrders, 3000);
     } else {
       els.loginMessage.textContent = "パスワードが違います";
       els.loginMessage.className = "status-text warn";
@@ -580,74 +500,16 @@ function initHqPage() {
     const ok = window.confirm("注文履歴をすべて削除しますか？");
     if (!ok) return;
     try {
-      await remove(ordersRef);
+      await fetch('/api/orders', { method: 'DELETE' });
+      state.orders = [];
+      renderDashboard();
     } catch (error) {
       console.error(error);
       els.loginMessage.textContent = "履歴クリアに失敗しました";
       els.loginMessage.className = "status-text warn";
     }
   });
-
-  if (authRequired) {
-    initAuthGate({
-      onSignedIn() {
-        els.hqLogin.classList.remove("hidden");
-      },
-      onSignedOut() {
-        if (unsubscribeOrders) {
-          unsubscribeOrders();
-          unsubscribeOrders = null;
-        }
-        state.hqUnlocked = false;
-        state.orders = [];
-        els.hqPassword.value = "";
-        els.hqLogin.classList.add("hidden");
-        els.dashboard.classList.add("hidden");
-        renderDashboard();
-      },
-    });
-  } else {
-    els.hqLogin.classList.remove("hidden");
-  }
-  let isListening = false;
-
-  async function startListeningOrders() {
-    if (isListening) return;
-    isListening = true;
-
-    state.orders = [];
-
-    try {
-      const snapshot = await get(ordersRef);
-      if (snapshot.exists()) {
-        const initialData = snapshot.val();
-        Object.keys(initialData).forEach(key => {
-          state.orders.push({ id: key, ...initialData[key] });
-        });
-        state.orders.sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
-        renderDashboard();
-      }
-
-      onChildAdded(ordersRef, (childSnapshot) => {
-        const newOrderId = childSnapshot.key;
-        const exists = state.orders.some(o => o.id === newOrderId);
-        if (!exists) {
-          state.orders.push({ id: newOrderId, ...childSnapshot.val() });
-          // 並び替え（最新を一番上にする場合はここでソート）
-          state.orders.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
-          renderDashboard();
-        }
-      });
-    } catch (err) {
-      console.error("データ取得エラー:", err);
-    }
-  }
 }
 
-if (page === "staff") {
-  initStaffPage();
-}
-
-if (page === "hq") {
-  initHqPage();
-}
+if (page === "staff") initStaffPage();
+if (page === "hq") initHqPage();

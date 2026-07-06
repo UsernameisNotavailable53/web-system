@@ -1,3 +1,5 @@
 # web-system
-anyohaseyo
-안녕하세요
+gemini verでは
+Firebase realtimeを使わずにサーバー経由をすることでのFirebaseの恐怖とおさらばできること。こっちのほうが利点しかない　ただしコマンドプロンプトは二つ起動するはめになる
+他にも、CloudFlare tunnelを使って臨時公開できること。
+その上でnodeを使わないといけなくなった　

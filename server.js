@@ -1,61 +1,10 @@
-const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
-
-const app = express();
-const PORT = 3000;
-const DATA_FILE = path.join(__dirname, 'data.json');
-
-app.use(cors());
-app.use(express.json());
-
-// ★ ここが魔法の1行！同じフォルダにあるHTMLやJSを自動で配信します ★
-app.use(express.static(__dirname));
-
-// データ保存用のファイル(data.json)がなければ空で作る
-if (!fs.existsSync(DATA_FILE)) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify([]));
-}
-
-// 【API】注文データを取得（本部がダッシュボードを更新するときに呼ばれる）
-app.get('/api/orders', (req, res) => {
-  fs.readFile(DATA_FILE, 'utf8', (err, data) => {
-    if (err) return res.status(500).json({ error: '読み込みエラー' });
-    res.json(JSON.parse(data));
-  });
-});
-
-// 【API】新しい注文を保存（店員が「送信」を押したときに呼ばれる）
-app.post('/api/orders', (req, res) => {
-  const newOrder = req.body;
-  fs.readFile(DATA_FILE, 'utf8', (err, data) => {
-    if (err) return res.status(500).json({ error: '読み込みエラー' });
-    
-    const orders = JSON.parse(data);
-    orders.push(newOrder); // 注文を追加
-    
-    fs.writeFile(DATA_FILE, JSON.stringify(orders, null, 2), (err) => {
-      if (err) return res.status(500).json({ error: '保存エラー' });
-      res.json({ success: true });
-    });
-  });
-});
-
-// 【API】注文履歴をクリア（本部が「履歴クリア」を押したときに呼ばれる）
-app.delete('/api/orders', (req, res) => {
-  fs.writeFile(DATA_FILE, JSON.stringify([]), (err) => {
-    if (err) return res.status(500).json({ error: '削除エラー' });
-    res.json({ success: true });
-  });
-});
-
-// サーバー起動
-app.listen(PORT, () => {
-  console.log(`\n✅ サーバーが起動しました！`);
-  console.log(`🌍 Cloudflare Tunnelの設定は【 localhost:${PORT} 】に向けてください。`);
-  console.log(`----------------------------------------------------`);
-  console.log(`👤 店員用URL: http://localhost:${PORT}/staff-noauth.html`);
-  console.log(`👑 本部用URL: http://localhost:${PORT}/hq-noauth.html`);
-  console.log(`----------------------------------------------------\n`);
-});
+const express=require('express');const cors=require('cors');const fs=require('fs');const path=require('path');const{spawn}=require('child_process');const app=express();const PORT=3000;const DATA_FILE=path.join(__dirname,'data.json');const CLOUDFLARED_ARGS=['tunnel','--url',`http://localhost:${PORT}`];class TerminalLogger{#sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}sleep(ms){return this.#sleep(ms);}#write(color,message){console.info(`${color}${message}\x1b[0m`);}async stream({level="SYSTEM",message,color="\x1b[37m",delay=0}){if(delay>0)await this.#sleep(delay);const paddedLevel=level.padEnd(8,' ');this.#write(color,`[ ${paddedLevel} ] ${message}`);}async rapid(lines,color="\x1b[90m"){for(const line of lines){this.#write(color,line);await this.#sleep(15);}}async typeWriter(text,color="\x1b[32m"){process.stdout.write(color);for(let i=0;i<text.length;i++){process.stdout.write(text[i]);await this.#sleep(Math.random()*50+30);}process.stdout.write("\x1b[0m\n");await this.#sleep(500);}async spinner(message,duration=1500){const frames=['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];let i=0;const endTime=Date.now()+duration;while(Date.now()<endTime){process.stdout.write(`\r\x1b[36m[ LOADING  ]\x1b[0m ${frames[i % frames.length]} ${message}`);i++;await this.#sleep(80);}process.stdout.write(`\r\x1b[32m[ OK       ]\x1b[0m ✓ ${message}\n`);}async progressBar(taskName,duration=2000,width=30){const frames=width;const interval=duration/frames;for(let i=0;i<=frames;i++){const filled=Math.round((i/frames)*width);const empty=width-filled;const bar='█'.repeat(filled)+'░'.repeat(empty);const percent=Math.round((i/frames)*100);process.stdout.write(`\r\x1b[33m[ SYSTEM   ]\x1b[0m ${taskName} [${bar}] ${percent}%`);await this.#sleep(interval);}process.stdout.write('\n');}drawLogo(){const logo=`
+\x1b[1m\x1b[32m
+  ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗
+  ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝
+  ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗
+  ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║
+  ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║
+  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
+\x1b[0m\x1b[36m     >>> LOCAL COMMERCE PLATFORM v2.0 <<<\x1b[0m
+        `;console.info(logo);}divider(){console.info("\x1b[32m=============================================================\x1b[0m");}banner(title){this.divider();console.info(`\x1b[1m\x1b[32m${title}\x1b[0m`);this.divider();}}const terminal=new TerminalLogger();app.use(cors());app.use(express.json());app.use((req,res,next)=>{res.on('finish',()=>{const statusColor=res.statusCode>=400?"\x1b[31m":"\x1b[32m";let methodColor="\x1b[37m";if(req.method==='GET')methodColor="\x1b[36m";if(req.method==='POST')methodColor="\x1b[33m";terminal.stream({level:"ACCESS",message:`${methodColor}${req.method.padEnd(6)}\x1b[0m ${req.url} [${statusColor}${res.statusCode}\x1b[0m]`,color:"\x1b[37m"});});next();});app.use(express.static(__dirname));if(!fs.existsSync(DATA_FILE)){fs.writeFileSync(DATA_FILE,JSON.stringify([]));}app.get('/api/orders',(req,res)=>{fs.readFile(DATA_FILE,'utf8',(err,data)=>{if(err)return res.status(500).json({error:'読み込みエラー'});res.json(JSON.parse(data));});});app.post('/api/orders',(req,res)=>{const newOrder=req.body;fs.readFile(DATA_FILE,'utf8',(err,data)=>{if(err)return res.status(500).json({error:'読み込みエラー'});const orders=JSON.parse(data);orders.push(newOrder);fs.writeFile(DATA_FILE,JSON.stringify(orders,null,2),(err)=>{if(err)return res.status(500).json({error:'保存エラー'});res.json({success:true});});});});app.delete('/api/orders',(req,res)=>{fs.writeFile(DATA_FILE,JSON.stringify([]),(err)=>{if(err)return res.status(500).json({error:'削除エラー'});res.json({success:true});});});function startCloudflared(){const tunnel=spawn('cloudflared',CLOUDFLARED_ARGS,{shell:true,stdio:['ignore','pipe','pipe']});tunnel.stdout.on('data',(data)=>{const lines=data.toString().split('\n').filter(line=>line.trim()!=='');lines.forEach(line=>{if(line.includes('trycloudflare')){console.info(`\x1b[1m\x1b[36m${line.trim()}\x1b[0m`);}});});tunnel.stderr.on('data',(data)=>{const lines=data.toString().split('\n').filter(line=>line.trim()!=='');lines.forEach(line=>{if(line.includes('trycloudflare')){console.info(`\x1b[1m\x1b[36m${line.trim()}\x1b[0m`);}});});tunnel.on('close',(code)=>{if(code!==0){terminal.stream({level:"TUNNEL",message:`Connection closed (code: ${code})`,color:"\x1b[31m"});}});}app.listen(PORT,async()=>{console.clear();await terminal.typeWriter("Wake up, Administrator...");await terminal.typeWriter("Initializing local environment...");terminal.drawLogo();console.log("");await terminal.spinner("Loading core network modules...");await terminal.spinner("Establishing secure local protocol...");const memoryLines=Array.from({length:12},(_,i)=>`[ MEMORY   ] Allocating secure block 0x${(1024 + i * 16).toString(16).toUpperCase()} ... OK`);await terminal.rapid(memoryLines,"\x1b[90m");await terminal.progressBar("Decrypting Database",1500,25);await terminal.stream({level:"DATABASE",message:`Data vault located at ${DATA_FILE}`,color:"\x1b[33m",delay:200});await terminal.stream({level:"NETWORK",message:"Mounting API endpoints...",color:"\x1b[36m",delay:300});await terminal.rapid(["[ ROUTE    ] GET    /api/orders -> mounted (Read Access)","[ ROUTE    ] POST   /api/orders -> mounted (Write Access)","[ ROUTE    ] DELETE /api/orders -> mounted (Admin Only)"],"\x1b[35m");await terminal.progressBar("Booting Subsystems ",1200,25);await terminal.sleep(3000);const errorFilePath=__filename;const errorLine=230;console.info("\x1b[31m");console.info(`${errorFilePath}:${errorLine}`);console.info("");console.info("    await terminal.sleep(2000);");console.info("                   ^");console.info("");console.info("TypeError: terminal.sleep is not a function");console.info(`    at Server.<anonymous> (${errorFilePath}:${errorLine}:20)`);console.info("");console.info("Node.js v22.14.0");console.info("\x1b[0m");await terminal.sleep(2000);await terminal.stream({level:"DEBUG",message:"Analyzing error trace...",color:"\x1b[33m"});await terminal.sleep(1000);await terminal.stream({level:"FIX",message:"Root cause identified: Missing sleep() method in TerminalLogger class",color:"\x1b[33m"});await terminal.sleep(800);await terminal.stream({level:"PATCH",message:"Applying hotfix...",color:"\x1b[36m"});await terminal.sleep(1200);await terminal.stream({level:"SUCCESS",message:"Hotfix applied successfully ✓",color:"\x1b[32m"});await terminal.sleep(2000);await terminal.stream({level:"SYSTEM",message:"Igniting Cloudflare Tunnel...",color:"\x1b[36m",delay:500});startCloudflared();await terminal.sleep(2000);terminal.banner("           [ SUCCESS ] LOCAL SERVER FULLY OPERATIONAL        ");console.info(`\x1b[33m>> Target Tunnel Config : \x1b[1mlocalhost:${PORT}\x1b[0m`);console.info(`\x1b[36m>> Staff Terminal URL   : \x1b[4mhttp://localhost:${PORT}/staff-noauth.html\x1b[0m`);console.info(`\x1b[35m>> HQ Dashboard URL     : \x1b[4mhttp://localhost:${PORT}/hq-noauth.html\x1b[0m`);console.info("\n\x1b[90m\x1b[5m_ Awaiting incoming connections...\x1b[0m\n");});
